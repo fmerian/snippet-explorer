@@ -45,6 +45,7 @@ import {
 } from "@raycast/icons";
 import type { Category, Snippet } from "../data/snippets";
 import { extractSnippets } from "../utils/extractSnippets";
+import { IconComponent } from "../components/IconComponent";
 
 const raycastProtocolForEnvironments = {
   development: "raycastinternal",
@@ -97,7 +98,9 @@ export default function Home({ onTouchReady }: { onTouchReady: () => void }) {
   const router = useRouter();
 
   const [selectedSnippets, setSelectedSnippets] = React.useState<Snippet[]>([]);
-  const [copied, setCopied] = React.useState(false);
+
+  const [showToast, setShowToast] = React.useState(false);
+  const [toastMessage, setToastMessage] = React.useState("");
 
   const [startMod, setStartMod] = React.useState<Modifiers>("!");
   const [endMod, setEndMod] = React.useState<Modifiers>("none");
@@ -190,12 +193,27 @@ export default function Home({ onTouchReady }: { onTouchReady: () => void }) {
 
   const handleCopyData = React.useCallback(() => {
     copy(makeSnippetImportData());
-    setCopied(true);
+    setToastMessage("Copied to clipboard");
+    setShowToast(true);
   }, [makeSnippetImportData]);
 
-  const handleCopyUrl = React.useCallback(() => {
-    copy(`${window.location.origin}/shared?${makeQueryString()}`);
-    setCopied(true);
+  const handleCopyUrl = React.useCallback(async () => {
+    setToastMessage("Copying URL to clipboard...");
+    setShowToast(true);
+    const url = `${window.location.origin}/shared?${makeQueryString()}`;
+    let urlToCopy = url;
+    const encodedUrl = encodeURIComponent(urlToCopy);
+    const response = await fetch(
+      `https://ray.so/api/shorten-url?url=${encodedUrl}&ref=snippets`
+    ).then((res) => res.json());
+
+    if (response.link) {
+      urlToCopy = response.link;
+    }
+
+    copy(urlToCopy);
+    setShowToast(true);
+    setToastMessage("Copied URL to clipboard!");
   }, [makeQueryString]);
 
   const handleAddToRaycast = React.useCallback(
@@ -280,12 +298,12 @@ export default function Home({ onTouchReady }: { onTouchReady: () => void }) {
   ]);
 
   React.useEffect(() => {
-    if (copied) {
+    if (showToast) {
       setTimeout(() => {
-        setCopied(false);
+        setShowToast(false);
       }, 2000);
     }
-  }, [copied]);
+  }, [showToast]);
 
   return (
     <div>
@@ -537,9 +555,9 @@ export default function Home({ onTouchReady }: { onTouchReady: () => void }) {
         </div>
       </header>
 
-      <Toast open={copied} onOpenChange={setCopied}>
+      <Toast open={showToast} onOpenChange={setShowToast}>
         <ToastTitle className={styles.toastTitle}>
-          <CopyClipboardIcon /> Copied to clipboard
+          <CopyClipboardIcon /> {toastMessage}
         </ToastTitle>
       </Toast>
 
@@ -644,7 +662,8 @@ export default function Home({ onTouchReady }: { onTouchReady: () => void }) {
                     tabIndex={-1}
                   >
                     <h2 className={styles.subtitle}>
-                      <snippetGroup.icon /> {snippetGroup.name}
+                      <IconComponent icon={snippetGroup.icon} />{" "}
+                      {snippetGroup.name}
                     </h2>
                     <div
                       className={styles.snippets}
@@ -671,20 +690,20 @@ export default function Home({ onTouchReady }: { onTouchReady: () => void }) {
                             data-key={`${snippetGroup.slug}-${index}`}
                           >
                             <div className={styles.snippet}>
-                              {snippet.type === "template" ||
-                              snippet.type === "spelling" ? (
-                                <ScrollArea>
-                                  <pre className={styles.template}>
-                                    {snippet.text}
-                                  </pre>
-                                </ScrollArea>
-                              ) : (
+                              {snippet.type === "symbol" ||
+                              snippet.type === "unicode" ? (
                                 <span
                                   className={styles.text}
                                   data-type={snippet.type}
                                 >
                                   {snippet.text}
                                 </span>
+                              ) : (
+                                <ScrollArea>
+                                  <pre className={styles.template}>
+                                    {snippet.text}
+                                  </pre>
+                                </ScrollArea>
                               )}
                             </div>
                             <span className={styles.name}>{snippet.name}</span>
@@ -719,7 +738,11 @@ function NavItem({ snippetGroup }: { snippetGroup: Category }) {
       className={styles.sidebarNavItem}
       data-active={activeSection === snippetGroup.slug}
     >
-      {snippetGroup.icon ? <snippetGroup.icon /> : <SnippetsIcon />}
+      {snippetGroup.icon ? (
+        <IconComponent icon={snippetGroup.icon} />
+      ) : (
+        <SnippetsIcon />
+      )}
 
       {snippetGroup.name}
       <span className={styles.badge}>{snippetGroup.snippets.length}</span>

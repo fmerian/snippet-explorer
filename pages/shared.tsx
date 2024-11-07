@@ -42,7 +42,7 @@ export default function Home() {
 
   const [actionsOpen, setActionsOpen] = React.useState(false);
   const sharedSnippetsInURL = React.useMemo(
-    () => parseURLPrompt(router.query.prompts),
+    () => parseURLSnippet(router.query.snippet),
     [router.query]
   );
   const [selectedSnippets, setSelectedSnippets] = React.useState([
@@ -53,8 +53,15 @@ export default function Home() {
     []
   );
 
+  React.useEffect(() => {
+    // everytime the sharedSnippetsInURL changes, we want to update the selectedSnippets
+    // so that we start with the shared snippets selected
+    setSelectedSnippets([...sharedSnippetsInURL]);
+  }, [sharedSnippetsInURL]);
+
   let gridCols = 1;
   switch (sharedSnippetsInURL.length) {
+    case 1:
     case 2:
       gridCols = 2;
       break;
@@ -73,7 +80,9 @@ export default function Home() {
 
   const categories = [
     {
-      name: `${sharedSnippetsInURL.length} snippets shared with you`,
+      name: `${sharedSnippetsInURL.length} snippet${
+        sharedSnippetsInURL.length > 1 ? "s" : ""
+      } shared with you`,
       gridCols,
       isTemplate: true,
       isShared: true,
@@ -235,51 +244,53 @@ export default function Home() {
           </span>
         </Link>
         <div className={styles.navControls}>
-          <ButtonGroup>
-            <Button
-              variant="red"
-              disabled={selectedSnippets.length === 0}
-              onClick={() => handleAddToRaycast()}
-            >
-              <PlusCircleIcon /> Add to Raycast
-            </Button>
+          <div className={styles.hiddenOnMobile}>
+            <ButtonGroup>
+              <Button
+                variant="red"
+                disabled={selectedSnippets.length === 0}
+                onClick={() => handleAddToRaycast()}
+              >
+                <PlusCircleIcon /> Add to Raycast
+              </Button>
 
-            <DropdownMenu open={actionsOpen} onOpenChange={setActionsOpen}>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="red"
-                  disabled={selectedSnippets.length === 0}
-                  aria-label="Export options"
-                >
-                  <ChevronDownIcon />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent>
-                <DropdownMenuItem
-                  disabled={selectedSnippets.length === 0}
-                  onSelect={() => handleDownload()}
-                >
-                  <DownloadIcon /> Download JSON
-                  <span className={styles.hotkeys}>
-                    <kbd>⌘</kbd>
-                    <kbd>D</kbd>
-                  </span>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  disabled={selectedSnippets.length === 0}
-                  onSelect={() => handleCopyData()}
-                >
-                  <CopyClipboardIcon /> Copy JSON{" "}
-                  <span className={styles.hotkeys}>
-                    <kbd>⌘</kbd>
-                    <kbd>⌥</kbd>
-                    <kbd>C</kbd>
-                  </span>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </ButtonGroup>
+              <DropdownMenu open={actionsOpen} onOpenChange={setActionsOpen}>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="red"
+                    disabled={selectedSnippets.length === 0}
+                    aria-label="Export options"
+                  >
+                    <ChevronDownIcon />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                  <DropdownMenuItem
+                    disabled={selectedSnippets.length === 0}
+                    onSelect={() => handleDownload()}
+                  >
+                    <DownloadIcon /> Download JSON
+                    <span className={styles.hotkeys}>
+                      <kbd>⌘</kbd>
+                      <kbd>D</kbd>
+                    </span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    disabled={selectedSnippets.length === 0}
+                    onSelect={() => handleCopyData()}
+                  >
+                    <CopyClipboardIcon /> Copy JSON{" "}
+                    <span className={styles.hotkeys}>
+                      <kbd>⌘</kbd>
+                      <kbd>⌥</kbd>
+                      <kbd>C</kbd>
+                    </span>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </ButtonGroup>
+          </div>
         </div>
       </header>
 
@@ -291,7 +302,7 @@ export default function Home() {
 
       <div>
         <div className={styles.container}>
-          {!isTouch && (
+          {isTouch !== null && (
             <SelectionArea
               className="container"
               onStart={onStart}
@@ -335,20 +346,20 @@ export default function Home() {
                             data-key={`${snippetGroup.slug}-${index}`}
                           >
                             <div className={styles.snippet}>
-                              {snippet.type === "template" ||
-                              snippet.type === "spelling" ? (
-                                <ScrollArea>
-                                  <pre className={styles.template}>
-                                    {snippet.text}
-                                  </pre>
-                                </ScrollArea>
-                              ) : (
+                              {snippet.type === "symbol" ||
+                              snippet.type === "unicode" ? (
                                 <span
                                   className={styles.text}
                                   data-type={snippet.type}
                                 >
                                   {snippet.text}
                                 </span>
+                              ) : (
+                                <ScrollArea>
+                                  <pre className={styles.template}>
+                                    {snippet.text}
+                                  </pre>
+                                </ScrollArea>
                               )}
                             </div>
                             <span className={styles.name}>{snippet.name}</span>
@@ -373,18 +384,18 @@ export default function Home() {
   );
 }
 
-function parseURLPrompt(promptQueryString?: string | string[]): Snippet[] {
-  if (!promptQueryString) {
+function parseURLSnippet(queryString?: string | string[]): Snippet[] {
+  if (!queryString) {
     return [];
   }
   let snippets;
-  if (Array.isArray(promptQueryString)) {
-    snippets = promptQueryString;
+  if (Array.isArray(queryString)) {
+    snippets = queryString;
   } else {
-    snippets = [promptQueryString];
+    snippets = [queryString];
   }
-  return snippets.map((prompt) => ({
-    ...JSON.parse(prompt),
+  return snippets.map((snippet) => ({
+    ...JSON.parse(snippet),
     id: nanoid(),
     isShared: true,
   }));
